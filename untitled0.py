@@ -47,15 +47,30 @@ def rescale(A):
         print error
     return mean,A,error
 
-
+def translate(Mx,My,Ox,Oy):
+    '''
+    Calculate the translation to fit matrix to objective
+    @param: Mx matrix X components           
+    @param: My matrix Y components
+    @param: Ox objective X components              
+    @param: Oy objective Y components                             
+    @return X, Y: Translation in X and Y
+    '''
+    
+    Dx = Ox-Mx;
+    Dy = Oy-My;
+    X = np.mean(Dx);
+    Y = np.mean(Dy);
+    
+    return X,Y
     
 def Matching(target,eigVals,eigVecs,mean):
     '''
     @param target:                Target shape
     '''
     stop = 0
-    b = np.zeros((1, 80))
-    current = np.zeros((2, 40))
+    b = np.zeros((1,80))
+    current = np.zeros((2,40))
     error = 10
     Xt = np.mean(target[1,::2]);#Divide in X coordinates
     Yt = np.mean(target[1,1::2]);#Divide in Y coordinates
@@ -64,20 +79,27 @@ def Matching(target,eigVals,eigVecs,mean):
     target[i,1::2] = target[i,1::2]-np.mean(target[i,1::2]);#Zero-mean of the Y axis
     
     while error > 0.0001:#change later, the error is not thresholded, it stops when the error doesn't change significantly in various iterations
-        XIni = mean + np.dot(eigVecs,b)
+        X = mean + np.dot(eigVecs,b)
         
-        s, a, T, xFin = transform(XIni, target)
-        xFin = project_tangent(xFin);
+        s, a, T, transformed = transform(X, target)
+        Tx, Ty = translate(transformed[i,::2],transformed[i,1::2],target[i,::2],target[i,1::2])
+        tM = np.vstack((transformed[i,::2],transformed[i,1::2])) + np.vstack((Tx,Ty));
+        transfMatrix = tM.T;
+        yy= np.dot(transfMatrix,target[i,::2],target[i,1::2]);
         
-        error = np.linalg.norm(xFin-target)
+        yp = project_tangent(yy);
         
-        plt.plot(A[i,::2],A[i,1::2])
+        b = eigVecs.T*(yp - mean);
+        
+        error = np.linalg.norm(X-target)
+        
+        plt.plot(X[i,::2],X[i,1::2])
         plt.show()
         
         print error
         
     
-    return
+    return X
 
 def project_tangent(A, T):
     '''
@@ -295,8 +317,22 @@ def preproc(img):
     cv2.destroyAllWindows()
     print r,g,s,c
     
+def derivative(img, kernelSize):
+    
+    sobelx = cv2.Sobel(img,cv2.CV_64F,1,0,kernelSize=5);
+    sobely = cv2.Sobel(img,cv2.CV_64F,0,1,kernelSize=5);
+    
+    return sobelx, sobely
+    
+def directionPerPixel(img,pixels):
+    
+    xDir,yDir = derivative(img,5);
+    
+    
+    
 def test_imagefilter():
-    img = cv2.imread("C:\\Users\\David\\Google Drive\\KULeuven\\Computer vision\\Nieuwe map\\_Data\\Radiographs\\01.tif",0);
+    #img = cv2.imread("C:\\Users\\David\\Google Drive\\KULeuven\\Computer vision\\Nieuwe map\\_Data\\Radiographs\\01.tif",0);
+    img = cv2.imread("/Users/David/Desktop/Python/Project_Data/_Data/Radiographs/01.tif",0);
 
     rows, cols = img.shape
     print rows,cols
@@ -308,7 +344,8 @@ def test_imagefilter():
 if __name__ == '__main__':
     reader = np.zeros([112,80])
     i=0;
-    directory = "C:\Users\David\Google Drive\KULeuven\Computer vision\Nieuwe map\\_Data/Landmarks/original/"
+    directory = "_Data/Landmarks/original/"
+    #directory = "C:\Users\David\Google Drive\KULeuven\Computer vision\Nieuwe map\\_Data/Landmarks/original/"
     for filename in fnmatch.filter(os.listdir(directory),'*.txt'):
         reader[i,:] = np.loadtxt(open(directory+filename,"rb"),delimiter=",",skiprows=0)
         reader[i,::2]  = reader[i,::2]-np.mean(reader[i,::2]);#Zero-mean of the X axis
